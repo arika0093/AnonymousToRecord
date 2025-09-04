@@ -1,10 +1,10 @@
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.Diagnostics;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Diagnostics;
 using Xunit;
 
 namespace AnonymousToRecord.Tests;
@@ -40,36 +40,46 @@ public class TestExampleCase
             """;
 
         var syntaxTree = CSharpSyntaxTree.ParseText(exampleCode);
-        
-        var references = new[] {
+
+        var references = new[]
+        {
             MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.Collections.Generic.List<>).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location)
+            MetadataReference.CreateFromFile(
+                typeof(System.Collections.Generic.List<>).Assembly.Location
+            ),
+            MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location),
         };
-        
+
         var compilation = CSharpCompilation.Create(
             "TestAssembly",
             new[] { syntaxTree },
-            references);
+            references
+        );
 
         var analyzer = new AnonymousToRecordAnalyzer();
-        var compilationWithAnalyzers = compilation.WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(analyzer));
+        var compilationWithAnalyzers = compilation.WithAnalyzers(
+            ImmutableArray.Create<DiagnosticAnalyzer>(analyzer)
+        );
 
         var diagnostics = await compilationWithAnalyzers.GetAnalyzerDiagnosticsAsync();
         var atrDiagnostics = diagnostics.Where(d => d.Id == "ATR001").ToArray();
 
         // Should detect both the outer anonymous object and the inner one
         Assert.Equal(2, atrDiagnostics.Length);
-        
+
         // Check messages contain expected property names
         var messages = atrDiagnostics.Select(d => d.GetMessage()).ToArray();
-        
-        var outerObjectMessage = messages.FirstOrDefault(m => m.Contains("Name") && m.Contains("Age") && m.Contains("Foos") && m.Contains("Bars"));
-        var innerObjectMessage = messages.FirstOrDefault(m => m.Contains("Value") && m.Contains("Square"));
-        
+
+        var outerObjectMessage = messages.FirstOrDefault(m =>
+            m.Contains("Name") && m.Contains("Age") && m.Contains("Foos") && m.Contains("Bars")
+        );
+        var innerObjectMessage = messages.FirstOrDefault(m =>
+            m.Contains("Value") && m.Contains("Square")
+        );
+
         Assert.NotNull(outerObjectMessage);
         Assert.NotNull(innerObjectMessage);
-        
+
         // Verify they are Info level diagnostics
         Assert.All(atrDiagnostics, d => Assert.Equal(DiagnosticSeverity.Info, d.Severity));
     }

@@ -1,10 +1,10 @@
+using System;
+using System.Collections.Immutable;
+using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
-using System;
-using System.Collections.Immutable;
-using System.Linq;
 
 namespace AnonymousToRecord;
 
@@ -18,7 +18,8 @@ public class AnonymousToRecordAnalyzer : DiagnosticAnalyzer
         "Design",
         DiagnosticSeverity.Info,
         isEnabledByDefault: true,
-        description: "Anonymous objects can be replaced with record types for better type safety and reusability.");
+        description: "Anonymous objects can be replaced with record types for better type safety and reusability."
+    );
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         ImmutableArray.Create(AnonymousObjectRule);
@@ -27,7 +28,10 @@ public class AnonymousToRecordAnalyzer : DiagnosticAnalyzer
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
-        context.RegisterSyntaxNodeAction(AnalyzeAnonymousObject, SyntaxKind.AnonymousObjectCreationExpression);
+        context.RegisterSyntaxNodeAction(
+            AnalyzeAnonymousObject,
+            SyntaxKind.AnonymousObjectCreationExpression
+        );
     }
 
     private static void AnalyzeAnonymousObject(SyntaxNodeAnalysisContext context)
@@ -37,8 +41,8 @@ public class AnonymousToRecordAnalyzer : DiagnosticAnalyzer
         if (anonymousObject.Initializers.Count == 0)
             return;
 
-        var properties = anonymousObject.Initializers
-            .Select(initializer => GetPropertyName(initializer))
+        var properties = anonymousObject
+            .Initializers.Select(initializer => GetPropertyName(initializer))
             .Where(name => !string.IsNullOrEmpty(name))
             .ToArray();
 
@@ -50,7 +54,8 @@ public class AnonymousToRecordAnalyzer : DiagnosticAnalyzer
         var diagnostic = Diagnostic.Create(
             AnonymousObjectRule,
             anonymousObject.GetLocation(),
-            propertiesText);
+            propertiesText
+        );
 
         context.ReportDiagnostic(diagnostic);
     }

@@ -1,12 +1,12 @@
+using System.Collections.Immutable;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System.Collections.Immutable;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Xunit;
 
 namespace AnonymousToRecord.Tests;
@@ -30,7 +30,8 @@ public class AnonymousToRecordCodeFixProviderTests
         var compilation = CSharpCompilation.Create(
             "TestAssembly",
             new[] { syntaxTree },
-            new[] { MetadataReference.CreateFromFile(typeof(object).Assembly.Location) });
+            new[] { MetadataReference.CreateFromFile(typeof(object).Assembly.Location) }
+        );
 
         // Find anonymous object in syntax
         var root = await syntaxTree.GetRootAsync();

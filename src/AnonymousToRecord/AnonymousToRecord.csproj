@@ -27,7 +27,6 @@
     <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.3.0" />
     <PackageReference Include="System.Composition" Version="6.0.0" />
   </ItemGroup>
-  
   <ItemGroup>
     <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
   </ItemGroup>

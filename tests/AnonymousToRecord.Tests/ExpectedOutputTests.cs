@@ -46,22 +46,26 @@ public class ExpectedOutputTests
         ResetRecordCounter();
 
         var syntaxTree = CSharpSyntaxTree.ParseText(inputCode);
-        
+
         var references = new[]
         {
             MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.Collections.Generic.List<>).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location)
+            MetadataReference.CreateFromFile(
+                typeof(System.Collections.Generic.List<>).Assembly.Location
+            ),
+            MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location),
         };
-        
+
         var compilation = CSharpCompilation.Create(
             "TestAssembly",
             new[] { syntaxTree },
-            references);
+            references
+        );
 
         var analyzer = new AnonymousToRecordAnalyzer();
         var compilationWithAnalyzers = compilation.WithAnalyzers(
-            ImmutableArray.Create<DiagnosticAnalyzer>(analyzer));
+            ImmutableArray.Create<DiagnosticAnalyzer>(analyzer)
+        );
 
         var diagnostics = await compilationWithAnalyzers.GetAnalyzerDiagnosticsAsync();
         var atrDiagnostics = diagnostics.Where(d => d.Id == "ATR001").ToArray();
@@ -71,24 +75,32 @@ public class ExpectedOutputTests
 
         // Expected diagnostics:
         // 1. Inner anonymous object: new { Value = x, Square = x * x }
-        //    -> Would become AnonymousRecord_001(int Value, int Square)
+        //    -> Would become AnonymousRecord001(int Value, int Square)
         // 2. Outer anonymous object: new { Name, Age, Foos, Bars }
-        //    -> Would become AnonymousRecord_002(string Name, int Age, string[] Foos, IEnumerable<AnonymousRecord_001> Bars)
+        //    -> Would become AnonymousRecord002(string Name, int Age, string[] Foos, IEnumerable<AnonymousRecord001> Bars)
 
-        var innerObjectDiagnostic = atrDiagnostics.FirstOrDefault(d => 
-            d.GetMessage().Contains("Value") && d.GetMessage().Contains("Square"));
-        var outerObjectDiagnostic = atrDiagnostics.FirstOrDefault(d => 
-            d.GetMessage().Contains("Name") && d.GetMessage().Contains("Age") && 
-            d.GetMessage().Contains("Foos") && d.GetMessage().Contains("Bars"));
+        var innerObjectDiagnostic = atrDiagnostics.FirstOrDefault(d =>
+            d.GetMessage().Contains("Value") && d.GetMessage().Contains("Square")
+        );
+        var outerObjectDiagnostic = atrDiagnostics.FirstOrDefault(d =>
+            d.GetMessage().Contains("Name")
+            && d.GetMessage().Contains("Age")
+            && d.GetMessage().Contains("Foos")
+            && d.GetMessage().Contains("Bars")
+        );
 
         Assert.NotNull(innerObjectDiagnostic);
         Assert.NotNull(outerObjectDiagnostic);
 
         // Verify diagnostic messages
-        Assert.Equal("Anonymous object with properties 'Value, Square' can be converted to a record type", 
-            innerObjectDiagnostic.GetMessage());
-        Assert.Equal("Anonymous object with properties 'Name, Age, Foos, Bars' can be converted to a record type", 
-            outerObjectDiagnostic.GetMessage());
+        Assert.Equal(
+            "Anonymous object with properties 'Value, Square' can be converted to a record type",
+            innerObjectDiagnostic.GetMessage()
+        );
+        Assert.Equal(
+            "Anonymous object with properties 'Name, Age, Foos, Bars' can be converted to a record type",
+            outerObjectDiagnostic.GetMessage()
+        );
 
         // Verify severity
         Assert.Equal(DiagnosticSeverity.Info, innerObjectDiagnostic.Severity);
@@ -125,22 +137,26 @@ public class ExpectedOutputTests
         ResetRecordCounter();
 
         var syntaxTree = CSharpSyntaxTree.ParseText(inputCode);
-        
+
         var references = new[]
         {
             MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.Collections.Generic.List<>).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location)
+            MetadataReference.CreateFromFile(
+                typeof(System.Collections.Generic.List<>).Assembly.Location
+            ),
+            MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location),
         };
-        
+
         var compilation = CSharpCompilation.Create(
             "TestAssembly",
             new[] { syntaxTree },
-            references);
+            references
+        );
 
         var analyzer = new AnonymousToRecordAnalyzer();
         var compilationWithAnalyzers = compilation.WithAnalyzers(
-            ImmutableArray.Create<DiagnosticAnalyzer>(analyzer));
+            ImmutableArray.Create<DiagnosticAnalyzer>(analyzer)
+        );
 
         var diagnostics = await compilationWithAnalyzers.GetAnalyzerDiagnosticsAsync();
         var atrDiagnostics = diagnostics.Where(d => d.Id == "ATR001").ToArray();
@@ -163,7 +179,7 @@ public class ExpectedOutputTests
         // Verify that we can identify the properties correctly
         var innerInitializers = innerAnonymousObject.Initializers;
         Assert.Equal(2, innerInitializers.Count);
-        
+
         var outerInitializers = outerAnonymousObject.Initializers;
         Assert.Equal(4, outerInitializers.Count);
 
@@ -180,11 +196,13 @@ public class ExpectedOutputTests
 
         // Verify that the diagnostic messages contain the expected property names
         var diagnosticMessages = atrDiagnostics.Select(d => d.GetMessage()).ToArray();
-        
-        var innerObjectMessage = diagnosticMessages.FirstOrDefault(m => 
-            m.Contains("Value") && m.Contains("Square"));
-        var outerObjectMessage = diagnosticMessages.FirstOrDefault(m => 
-            m.Contains("Name") && m.Contains("Age") && m.Contains("Foos") && m.Contains("Bars"));
+
+        var innerObjectMessage = diagnosticMessages.FirstOrDefault(m =>
+            m.Contains("Value") && m.Contains("Square")
+        );
+        var outerObjectMessage = diagnosticMessages.FirstOrDefault(m =>
+            m.Contains("Name") && m.Contains("Age") && m.Contains("Foos") && m.Contains("Bars")
+        );
 
         Assert.NotNull(innerObjectMessage);
         Assert.NotNull(outerObjectMessage);
@@ -194,12 +212,11 @@ public class ExpectedOutputTests
         // 2. The inner anonymous object has properties Value and Square
         // 3. The outer anonymous object has properties Name, Age, Foos, and Bars
         // 4. The CodeFixProvider would be able to generate appropriate record types
-        
-        // The actual transformation would generate:
-        // - AnonymousRecord_001(int Value, int Square) for the inner object
-        // - AnonymousRecord_002(string Name, int Age, string[] Foos, IEnumerable<AnonymousRecord_001> Bars) for the outer object
-    }
 
+        // The actual transformation would generate:
+        // - AnonymousRecord001(int Value, int Square) for the inner object
+        // - AnonymousRecord002(string Name, int Age, string[] Foos, IEnumerable<AnonymousRecord001> Bars) for the outer object
+    }
 
     private static string GetPropertyNamePublic(AnonymousObjectMemberDeclaratorSyntax initializer)
     {
@@ -223,8 +240,10 @@ public class ExpectedOutputTests
 
     private static void ResetRecordCounter()
     {
-        var field = typeof(AnonymousToRecordCodeFixProvider)
-            .GetField("_recordCounter", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        var field = typeof(AnonymousToRecordCodeFixProvider).GetField(
+            "_recordCounter",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static
+        );
         field?.SetValue(null, 1);
     }
 }

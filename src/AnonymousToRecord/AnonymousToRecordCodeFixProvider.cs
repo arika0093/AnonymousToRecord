@@ -69,24 +69,31 @@ public class AnonymousToRecordCodeFixProvider : CodeFixProvider
             .OfType<AnonymousObjectCreationExpressionSyntax>()
             .ToList();
 
-        var recordsToCreate = new List<(string Name, RecordProperty[] Properties, AnonymousObjectCreationExpressionSyntax Syntax)>();
-        var objectReplacements = new Dictionary<AnonymousObjectCreationExpressionSyntax, ExpressionSyntax>();
+        var recordsToCreate =
+            new List<(
+                string Name,
+                RecordProperty[] Properties,
+                AnonymousObjectCreationExpressionSyntax Syntax
+            )>();
+        var objectReplacements =
+            new Dictionary<AnonymousObjectCreationExpressionSyntax, ExpressionSyntax>();
 
         // Process all anonymous objects to determine what records need to be created
         foreach (var anonObj in allAnonymousObjects)
         {
             var properties = GetRecordProperties(anonObj, semanticModel);
             var recordName = GetOrCreateRecordName(anonObj, semanticModel);
-            
+
             recordsToCreate.Add((recordName, properties, anonObj));
 
             var objectCreation = SyntaxFactory
                 .ObjectCreationExpression(SyntaxFactory.IdentifierName(recordName))
+                .WithArgumentList(SyntaxFactory.ArgumentList())
                 .WithInitializer(
                     SyntaxFactory.InitializerExpression(
                         SyntaxKind.ObjectInitializerExpression,
                         SyntaxFactory.SeparatedList<ExpressionSyntax>(
-                            properties.Select(p => 
+                            properties.Select(p =>
                                 SyntaxFactory.AssignmentExpression(
                                     SyntaxKind.SimpleAssignmentExpression,
                                     SyntaxFactory.IdentifierName(p.Name),
@@ -104,8 +111,9 @@ public class AnonymousToRecordCodeFixProvider : CodeFixProvider
         var sortedRecords = SortRecordsByDependencies(recordsToCreate);
 
         // Create all record declarations
-        var recordDeclarations = sortedRecords.Select(record => 
-            CreateRecordDeclaration(record.Name, record.Properties)).ToArray();
+        var recordDeclarations = sortedRecords
+            .Select(record => CreateRecordDeclaration(record.Name, record.Properties))
+            .ToArray();
 
         // Find the appropriate location to add records
         var namespaceOrClass = anonymousObject
@@ -141,23 +149,49 @@ public class AnonymousToRecordCodeFixProvider : CodeFixProvider
         }
 
         // Replace all anonymous object expressions with record constructor calls
-        newRoot = newRoot.ReplaceNodes(objectReplacements.Keys, (original, rewritten) => objectReplacements[original]);
+        newRoot = newRoot.ReplaceNodes(
+            objectReplacements.Keys,
+            (original, rewritten) => objectReplacements[original]
+        );
 
         return document.WithSyntaxRoot(newRoot);
     }
 
-    private static List<(string Name, RecordProperty[] Properties, AnonymousObjectCreationExpressionSyntax Syntax)> 
-        SortRecordsByDependencies(List<(string Name, RecordProperty[] Properties, AnonymousObjectCreationExpressionSyntax Syntax)> records)
+    private static List<(
+        string Name,
+        RecordProperty[] Properties,
+        AnonymousObjectCreationExpressionSyntax Syntax
+    )> SortRecordsByDependencies(
+        List<(
+            string Name,
+            RecordProperty[] Properties,
+            AnonymousObjectCreationExpressionSyntax Syntax
+        )> records
+    )
     {
         // Simple topological sort - records with anonymous type dependencies come after their dependencies
-        var sorted = new List<(string Name, RecordProperty[] Properties, AnonymousObjectCreationExpressionSyntax Syntax)>();
-        var remaining = new List<(string Name, RecordProperty[] Properties, AnonymousObjectCreationExpressionSyntax Syntax)>(records);
+        var sorted =
+            new List<(
+                string Name,
+                RecordProperty[] Properties,
+                AnonymousObjectCreationExpressionSyntax Syntax
+            )>();
+        var remaining = new List<(
+            string Name,
+            RecordProperty[] Properties,
+            AnonymousObjectCreationExpressionSyntax Syntax
+        )>(records);
 
         while (remaining.Count > 0)
         {
-            var canProcess = remaining.Where(record =>
-                !record.Properties.Any(prop => prop.Type.StartsWith("AnonymousRecord_") && 
-                    remaining.Any(other => other.Name == prop.Type))).ToList();
+            var canProcess = remaining
+                .Where(record =>
+                    !record.Properties.Any(prop =>
+                        prop.Type.StartsWith("AnonymousRecord")
+                        && remaining.Any(other => other.Name == prop.Type)
+                    )
+                )
+                .ToList();
 
             if (canProcess.Count == 0)
             {
@@ -213,7 +247,9 @@ public class AnonymousToRecordCodeFixProvider : CodeFixProvider
         return "Property";
     }
 
-    private static readonly Dictionary<ITypeSymbol, string> _anonymousTypeNames = new(SymbolEqualityComparer.Default);
+    private static readonly Dictionary<ITypeSymbol, string> _anonymousTypeNames = new(
+        SymbolEqualityComparer.Default
+    );
 
     private static string GetPropertyType(
         AnonymousObjectMemberDeclaratorSyntax initializer,
@@ -232,7 +268,7 @@ public class AnonymousToRecordCodeFixProvider : CodeFixProvider
             // Always assign a record name for anonymous type
             if (!_anonymousTypeNames.TryGetValue(type, out var recordName))
             {
-                recordName = $"AnonymousRecord_{_recordCounter++:000}";
+                recordName = $"AnonymousRecord{_recordCounter++:000}";
                 _anonymousTypeNames[type] = recordName;
             }
             return recordName;
@@ -249,23 +285,23 @@ public class AnonymousToRecordCodeFixProvider : CodeFixProvider
                 {
                     if (!_anonymousTypeNames.TryGetValue(arg, out var anonRecordName))
                     {
-                        anonRecordName = $"AnonymousRecord_{_recordCounter++:000}";
+                        anonRecordName = $"AnonymousRecord{_recordCounter++:000}";
                         _anonymousTypeNames[arg] = anonRecordName;
                     }
                     return anonRecordName;
                 }
                 return arg.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
             });
-            
+
             // Get the generic type name without type parameters
             var genericName = namedType.ConstructedFrom.Name;
             var namespaceName = namedType.ConstructedFrom.ContainingNamespace?.ToDisplayString();
-            
+
             if (!string.IsNullOrEmpty(namespaceName) && namespaceName != "System")
             {
                 genericName = $"{namespaceName}.{genericName}";
             }
-            
+
             return $"{genericName}<{string.Join(", ", typeArgNames)}>";
         }
 
@@ -274,7 +310,10 @@ public class AnonymousToRecordCodeFixProvider : CodeFixProvider
 
     private static int _recordCounter = 1;
 
-    private static string GetOrCreateRecordName(AnonymousObjectCreationExpressionSyntax anonymousObject, SemanticModel semanticModel)
+    private static string GetOrCreateRecordName(
+        AnonymousObjectCreationExpressionSyntax anonymousObject,
+        SemanticModel semanticModel
+    )
     {
         var typeInfo = semanticModel.GetTypeInfo(anonymousObject);
         var type = typeInfo.Type;
@@ -283,7 +322,7 @@ public class AnonymousToRecordCodeFixProvider : CodeFixProvider
         {
             if (!_anonymousTypeNames.TryGetValue(type, out var recordName))
             {
-                recordName = $"AnonymousRecord_{_recordCounter++:000}";
+                recordName = $"AnonymousRecord{_recordCounter++:000}";
                 _anonymousTypeNames[type] = recordName;
             }
             return recordName;
@@ -300,16 +339,29 @@ public class AnonymousToRecordCodeFixProvider : CodeFixProvider
         var propertyDeclarations = properties.Select(p =>
             SyntaxFactory
                 .PropertyDeclaration(SyntaxFactory.ParseTypeName(p.Type), p.Name)
-                .WithModifiers(SyntaxFactory.TokenList(SyntaxFactory.Token(SyntaxKind.PublicKeyword)))
+                .WithModifiers(
+                    SyntaxFactory.TokenList(
+                        SyntaxFactory.Token(SyntaxKind.PublicKeyword),
+                        SyntaxFactory.Token(SyntaxKind.RequiredKeyword)
+                    )
+                )
                 .WithAccessorList(
                     SyntaxFactory.AccessorList(
-                        SyntaxFactory.List(new[]
-                        {
-                            SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration)
-                                .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)),
-                            SyntaxFactory.AccessorDeclaration(SyntaxKind.InitAccessorDeclaration)
-                                .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken))
-                        })
+                        SyntaxFactory.List(
+                            new[]
+                            {
+                                SyntaxFactory
+                                    .AccessorDeclaration(SyntaxKind.GetAccessorDeclaration)
+                                    .WithSemicolonToken(
+                                        SyntaxFactory.Token(SyntaxKind.SemicolonToken)
+                                    ),
+                                SyntaxFactory
+                                    .AccessorDeclaration(SyntaxKind.InitAccessorDeclaration)
+                                    .WithSemicolonToken(
+                                        SyntaxFactory.Token(SyntaxKind.SemicolonToken)
+                                    ),
+                            }
+                        )
                     )
                 )
         );

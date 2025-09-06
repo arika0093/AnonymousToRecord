@@ -57,9 +57,7 @@ public class ExampleCaseCodeFixTests
         );
 
         var analyzer = new AnonymousToRecordAnalyzer();
-        var compilationWithAnalyzers = compilation.WithAnalyzers(
-			[analyzer]
-		);
+        var compilationWithAnalyzers = compilation.WithAnalyzers([analyzer]);
 
         var diagnostics = await compilationWithAnalyzers.GetAnalyzerDiagnosticsAsync();
         var atrDiagnostics = diagnostics.Where(d => d.Id == "ATR001").ToArray();
@@ -68,8 +66,8 @@ public class ExampleCaseCodeFixTests
         Assert.Equal(2, atrDiagnostics.Length);
 
         // Expected generated records:
-        // 1. AnonymousRecord_001 for the inner object: new { Value = x, Square = x * x }
-        // 2. AnonymousRecord_002 for the outer object: new { Name, Age, Foos, Bars }
+        // 1. AnonymousRecord001 for the inner object: new { Value = x, Square = x * x }
+        // 2. AnonymousRecord002 for the outer object: new { Name, Age, Foos, Bars }
 
         // Check messages contain expected property names
         var messages = atrDiagnostics.Select(d => d.GetMessage()).ToArray();
@@ -125,7 +123,7 @@ public class ExampleCaseCodeFixTests
         Assert.Equal(3, atrDiagnostics.Length);
 
         // Expected generated records would be:
-        // AnonymousRecord_001, AnonymousRecord_002, AnonymousRecord_003
+        // AnonymousRecord001, AnonymousRecord002, AnonymousRecord_003
 
         var messages = atrDiagnostics.Select(d => d.GetMessage()).ToArray();
 

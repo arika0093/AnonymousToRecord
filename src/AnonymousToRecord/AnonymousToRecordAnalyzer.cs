@@ -8,9 +8,15 @@ using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace AnonymousToRecord;
 
+/// <summary>
+/// Analyzer that identifies anonymous objects that can be converted to record types.
+/// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public class AnonymousToRecordAnalyzer : DiagnosticAnalyzer
 {
+    /// <summary>
+    /// Diagnostic descriptor for anonymous objects that can be converted to records.
+    /// </summary>
     public static readonly DiagnosticDescriptor AnonymousObjectRule = new DiagnosticDescriptor(
         "ATR001",
         "Anonymous object can be converted to record",
@@ -21,9 +27,16 @@ public class AnonymousToRecordAnalyzer : DiagnosticAnalyzer
         description: "Anonymous objects can be replaced with record types for better type safety and reusability."
     );
 
+    /// <summary>
+    /// Gets the set of supported diagnostic descriptors for this analyzer.
+    /// </summary>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         ImmutableArray.Create(AnonymousObjectRule);
 
+    /// <summary>
+    /// Initializes the analyzer by registering for syntax node analysis.
+    /// </summary>
+    /// <param name="context">The analysis context.</param>
     public override void Initialize(AnalysisContext context)
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
@@ -34,6 +47,10 @@ public class AnonymousToRecordAnalyzer : DiagnosticAnalyzer
         );
     }
 
+    /// <summary>
+    /// Analyzes anonymous object creation expressions to determine if they can be converted to records.
+    /// </summary>
+    /// <param name="context">The syntax node analysis context.</param>
     private static void AnalyzeAnonymousObject(SyntaxNodeAnalysisContext context)
     {
         var anonymousObject = (AnonymousObjectCreationExpressionSyntax)context.Node;
@@ -60,6 +77,11 @@ public class AnonymousToRecordAnalyzer : DiagnosticAnalyzer
         context.ReportDiagnostic(diagnostic);
     }
 
+    /// <summary>
+    /// Extracts the property name from an anonymous object member declarator.
+    /// </summary>
+    /// <param name="initializer">The anonymous object member declarator.</param>
+    /// <returns>The property name, or empty string if it cannot be determined.</returns>
     private static string GetPropertyName(AnonymousObjectMemberDeclaratorSyntax initializer)
     {
         if (initializer.NameEquals != null)

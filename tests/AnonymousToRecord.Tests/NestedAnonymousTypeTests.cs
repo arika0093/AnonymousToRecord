@@ -69,13 +69,16 @@ public class NestedAnonymousTypeTests
 
         // Check that the diagnostic messages mention proper type names
         var messages = atrDiagnostics.Select(d => d.GetMessage()).ToArray();
-        
+
         // Ensure no diagnostic messages contain the problematic format
-        Assert.All(messages, m => 
-        {
-            Assert.DoesNotContain("<<anonymous type:", m);
-            Assert.DoesNotContain(">>", m);
-        });
+        Assert.All(
+            messages,
+            m =>
+            {
+                Assert.DoesNotContain("<<anonymous type:", m);
+                Assert.DoesNotContain(">>", m);
+            }
+        );
     }
 
     private static void ResetRecordCounter()
@@ -86,7 +89,7 @@ public class NestedAnonymousTypeTests
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static
         );
         field?.SetValue(null, 1);
-        
+
         // Also reset the anonymous type names dictionary
         var dictField = typeof(AnonymousToRecordCodeFixProvider).GetField(
             "_anonymousTypeNames",

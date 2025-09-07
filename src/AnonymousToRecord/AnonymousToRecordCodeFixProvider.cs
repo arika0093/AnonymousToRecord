@@ -12,18 +12,33 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace AnonymousToRecord;
 
+/// <summary>
+/// Code fix provider that converts anonymous objects to record types.
+/// </summary>
 [
     ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(AnonymousToRecordCodeFixProvider)),
     Shared
 ]
 public class AnonymousToRecordCodeFixProvider : CodeFixProvider
 {
+    /// <summary>
+    /// Gets the diagnostic IDs that this code fix provider can fix.
+    /// </summary>
     public sealed override ImmutableArray<string> FixableDiagnosticIds =>
         ImmutableArray.Create("ATR001");
 
+    /// <summary>
+    /// Gets the fix all provider for batch fixing.
+    /// </summary>
+    /// <returns>A fix all provider instance.</returns>
     public sealed override FixAllProvider GetFixAllProvider() =>
         WellKnownFixAllProviders.BatchFixer;
 
+    /// <summary>
+    /// Registers code fixes for the specified context.
+    /// </summary>
+    /// <param name="context">The code fix context.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public sealed override async Task RegisterCodeFixesAsync(CodeFixContext context)
     {
         var root = await context
@@ -52,6 +67,13 @@ public class AnonymousToRecordCodeFixProvider : CodeFixProvider
         context.RegisterCodeFix(action, diagnostic);
     }
 
+    /// <summary>
+    /// Converts anonymous objects in the document to record types.
+    /// </summary>
+    /// <param name="document">The document to modify.</param>
+    /// <param name="anonymousObject">The anonymous object to convert.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The modified document.</returns>
     private static async Task<Document> ConvertToRecordAsync(
         Document document,
         AnonymousObjectCreationExpressionSyntax anonymousObject,
@@ -69,6 +91,12 @@ public class AnonymousToRecordCodeFixProvider : CodeFixProvider
             .OfType<AnonymousObjectCreationExpressionSyntax>()
             .ToList();
 
+        // Create local naming context for thread safety
+        var anonymousTypeNames = new Dictionary<ITypeSymbol, string>(
+            SymbolEqualityComparer.Default
+        );
+        var recordCounter = 1;
+
         var recordsToCreate =
             new List<(
                 string Name,
@@ -81,8 +109,18 @@ public class AnonymousToRecordCodeFixProvider : CodeFixProvider
         // Process all anonymous objects to determine what records need to be created
         foreach (var anonObj in allAnonymousObjects)
         {
-            var properties = GetRecordProperties(anonObj, semanticModel);
-            var recordName = GetOrCreateRecordName(anonObj, semanticModel);
+            var properties = GetRecordProperties(
+                anonObj,
+                semanticModel,
+                anonymousTypeNames,
+                ref recordCounter
+            );
+            var recordName = GetOrCreateRecordName(
+                anonObj,
+                semanticModel,
+                anonymousTypeNames,
+                ref recordCounter
+            );
 
             recordsToCreate.Add((recordName, properties, anonObj));
 
@@ -211,20 +249,42 @@ public class AnonymousToRecordCodeFixProvider : CodeFixProvider
         return sorted;
     }
 
+    /// <summary>
+    /// Gets the record properties for an anonymous object.
+    /// </summary>
+    /// <param name="anonymousObject">The anonymous object syntax.</param>
+    /// <param name="semanticModel">The semantic model.</param>
+    /// <param name="anonymousTypeNames">Dictionary mapping anonymous types to record names.</param>
+    /// <param name="recordCounter">Reference to the current record counter.</param>
+    /// <returns>Array of record properties.</returns>
     private static RecordProperty[] GetRecordProperties(
         AnonymousObjectCreationExpressionSyntax anonymousObject,
-        SemanticModel semanticModel
+        SemanticModel semanticModel,
+        Dictionary<ITypeSymbol, string> anonymousTypeNames,
+        ref int recordCounter
     )
     {
-        return anonymousObject
-            .Initializers.Select(initializer => new RecordProperty
+        var properties = new List<RecordProperty>();
+        foreach (var initializer in anonymousObject.Initializers)
+        {
+            var property = new RecordProperty
             {
                 Name = GetPropertyName(initializer),
-                Type = GetPropertyType(initializer, semanticModel),
+                Type = GetPropertyType(
+                    initializer,
+                    semanticModel,
+                    anonymousTypeNames,
+                    ref recordCounter
+                ),
                 Expression = initializer.Expression,
-            })
-            .Where(p => !string.IsNullOrEmpty(p.Name))
-            .ToArray();
+            };
+
+            if (!string.IsNullOrEmpty(property.Name))
+            {
+                properties.Add(property);
+            }
+        }
+        return properties.ToArray();
     }
 
     private static string GetPropertyName(AnonymousObjectMemberDeclaratorSyntax initializer)
@@ -247,13 +307,19 @@ public class AnonymousToRecordCodeFixProvider : CodeFixProvider
         return "Property";
     }
 
-    private static readonly Dictionary<ITypeSymbol, string> _anonymousTypeNames = new(
-        SymbolEqualityComparer.Default
-    );
-
+    /// <summary>
+    /// Gets the property type for an anonymous object member declarator.
+    /// </summary>
+    /// <param name="initializer">The anonymous object member declarator.</param>
+    /// <param name="semanticModel">The semantic model.</param>
+    /// <param name="anonymousTypeNames">Dictionary mapping anonymous types to record names.</param>
+    /// <param name="recordCounter">Reference to the current record counter.</param>
+    /// <returns>The property type as a string.</returns>
     private static string GetPropertyType(
         AnonymousObjectMemberDeclaratorSyntax initializer,
-        SemanticModel semanticModel
+        SemanticModel semanticModel,
+        Dictionary<ITypeSymbol, string> anonymousTypeNames,
+        ref int recordCounter
     )
     {
         var typeInfo = semanticModel.GetTypeInfo(initializer.Expression);
@@ -266,10 +332,10 @@ public class AnonymousToRecordCodeFixProvider : CodeFixProvider
         if (type.IsAnonymousType)
         {
             // Always assign a record name for anonymous type
-            if (!_anonymousTypeNames.TryGetValue(type, out var recordName))
+            if (!anonymousTypeNames.TryGetValue(type, out var recordName))
             {
-                recordName = $"AnonymousRecord{_recordCounter++:000}";
-                _anonymousTypeNames[type] = recordName;
+                recordName = $"AnonymousRecord{recordCounter++:000}";
+                anonymousTypeNames[type] = recordName;
             }
             return recordName;
         }
@@ -279,19 +345,26 @@ public class AnonymousToRecordCodeFixProvider : CodeFixProvider
         if (type is INamedTypeSymbol namedType && namedType.IsGenericType)
         {
             var typeArgs = namedType.TypeArguments;
-            var typeArgNames = typeArgs.Select(arg =>
+            var typeArgNames = new List<string>();
+
+            foreach (var arg in typeArgs)
             {
                 if (arg.IsAnonymousType)
                 {
-                    if (!_anonymousTypeNames.TryGetValue(arg, out var anonRecordName))
+                    if (!anonymousTypeNames.TryGetValue(arg, out var anonRecordName))
                     {
-                        anonRecordName = $"AnonymousRecord{_recordCounter++:000}";
-                        _anonymousTypeNames[arg] = anonRecordName;
+                        anonRecordName = $"AnonymousRecord{recordCounter++:000}";
+                        anonymousTypeNames[arg] = anonRecordName;
                     }
-                    return anonRecordName;
+                    typeArgNames.Add(anonRecordName);
                 }
-                return arg.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
-            });
+                else
+                {
+                    typeArgNames.Add(
+                        arg.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)
+                    );
+                }
+            }
 
             // Get the generic type name without type parameters
             var genericName = namedType.ConstructedFrom.Name;
@@ -308,11 +381,19 @@ public class AnonymousToRecordCodeFixProvider : CodeFixProvider
         return type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
     }
 
-    private static int _recordCounter = 1;
-
+    /// <summary>
+    /// Gets or creates a record name for an anonymous object.
+    /// </summary>
+    /// <param name="anonymousObject">The anonymous object syntax.</param>
+    /// <param name="semanticModel">The semantic model.</param>
+    /// <param name="anonymousTypeNames">Dictionary mapping anonymous types to record names.</param>
+    /// <param name="recordCounter">Reference to the current record counter.</param>
+    /// <returns>The record name.</returns>
     private static string GetOrCreateRecordName(
         AnonymousObjectCreationExpressionSyntax anonymousObject,
-        SemanticModel semanticModel
+        SemanticModel semanticModel,
+        Dictionary<ITypeSymbol, string> anonymousTypeNames,
+        ref int recordCounter
     )
     {
         var typeInfo = semanticModel.GetTypeInfo(anonymousObject);
@@ -320,17 +401,23 @@ public class AnonymousToRecordCodeFixProvider : CodeFixProvider
 
         if (type != null && type.IsAnonymousType)
         {
-            if (!_anonymousTypeNames.TryGetValue(type, out var recordName))
+            if (!anonymousTypeNames.TryGetValue(type, out var recordName))
             {
-                recordName = $"AnonymousRecord{_recordCounter++:000}";
-                _anonymousTypeNames[type] = recordName;
+                recordName = $"AnonymousRecord{recordCounter++:000}";
+                anonymousTypeNames[type] = recordName;
             }
             return recordName;
         }
 
-        return $"AnonymousRecord_{_recordCounter++:000}";
+        return $"AnonymousRecord{recordCounter++:000}";
     }
 
+    /// <summary>
+    /// Creates a record declaration syntax from the specified name and properties.
+    /// </summary>
+    /// <param name="recordName">The name of the record.</param>
+    /// <param name="properties">The properties for the record.</param>
+    /// <returns>A record declaration syntax.</returns>
     private static RecordDeclarationSyntax CreateRecordDeclaration(
         string recordName,
         RecordProperty[] properties
@@ -374,10 +461,24 @@ public class AnonymousToRecordCodeFixProvider : CodeFixProvider
             .WithCloseBraceToken(SyntaxFactory.Token(SyntaxKind.CloseBraceToken));
     }
 
-    private class RecordProperty
+    /// <summary>
+    /// Represents a property in a record type.
+    /// </summary>
+    private sealed class RecordProperty
     {
+        /// <summary>
+        /// Gets or sets the name of the property.
+        /// </summary>
         public string Name { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the type of the property.
+        /// </summary>
         public string Type { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the expression for the property.
+        /// </summary>
         public ExpressionSyntax Expression { get; set; } = null!;
     }
 }

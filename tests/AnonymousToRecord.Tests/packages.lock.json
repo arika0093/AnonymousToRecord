@@ -282,7 +282,7 @@
       "anonymoustorecord": {
         "type": "Project",
         "dependencies": {
-          "Microsoft.CodeAnalysis.CSharp": "[4.3.0, )",
+          "Microsoft.CodeAnalysis.CSharp": "[5.0.0, )",
           "Microsoft.CodeAnalysis.Workspaces.Common": "[4.3.0, )",
           "System.Composition": "[6.0.0, )"
         }

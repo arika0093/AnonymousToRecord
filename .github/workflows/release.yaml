@@ -1,4 +1,4 @@
-﻿name: Release Package to NuGet
+name: Release Package to NuGet
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             9.x

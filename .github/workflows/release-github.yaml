@@ -1,4 +1,4 @@
-﻿name: Release Package to GitHub
+name: Release Package to GitHub
 
 on:
   workflow_dispatch:
@@ -48,7 +48,7 @@ jobs:
 
       - name: Create Release
         id: create_release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           name: ${{ steps.nbgv.outputs.SemVer2 }}
           tag_name: ${{ steps.nbgv.outputs.SemVer2 }}
